@@ -1,6 +1,7 @@
 package controller;
 
 import model.BacklogStudent;
+import model.Professor;
 import model.Student;
 import storage.FileHandler;
 
@@ -8,68 +9,98 @@ import java.util.ArrayList;
 import java.util.Comparator;
 
 /**
- * Central controller for managing student records.
- * Uses an ArrayList<Student> as the in-memory data store.
+ * Central controller for managing student and professor records.
  */
 public class ResultManager {
 
     private ArrayList<Student> students;
+    private ArrayList<Professor> professors;
 
     public ResultManager() {
-        this.students = FileHandler.loadFromFile();
+        this.students = FileHandler.loadStudents();
+        this.professors = FileHandler.loadProfessors();
     }
 
-    // ── CRUD Operations ────────────────────────────────
+    // ═══════════════════════════════════════════════════
+    //  STUDENT CRUD
+    // ═══════════════════════════════════════════════════
 
     /**
-     * Adds a new student. Rejects duplicates by roll number.
+     * Adds a student. Automatically creates a BacklogStudent if any mark < 30.
+     * Returns the added student (may be upgraded to BacklogStudent).
      */
-    public boolean addStudent(Student student) {
-        if (findByRollNo(student.getRollNo()) != null) {
-            System.out.println("❌ A student with roll number " + student.getRollNo() + " already exists.");
-            return false;
+    public Student addStudent(int rollNo, String name, String[] subjectNames, int[] marks) {
+        if (findByRollNo(rollNo) != null) {
+            System.out.println("❌ Roll number " + rollNo + " already exists.");
+            return null;
         }
+
+        String username = "student" + rollNo;
+        String password = "pass" + rollNo;
+
+        Student student;
+        if (BacklogStudent.hasBacklogs(marks)) {
+            student = new BacklogStudent(username, password, rollNo, name, subjectNames, marks);
+        } else {
+            student = new Student(username, password, rollNo, name, subjectNames, marks);
+        }
+
         students.add(student);
-        save();
-        System.out.println("✅ Student '" + student.getName() + "' added successfully.");
-        return true;
+        saveStudents();
+        System.out.println("✅ Student '" + name + "' added.");
+        return student;
     }
 
     /**
-     * Updates marks for an existing student.
+     * Updates marks. If the new marks push the student into backlog territory,
+     * replaces the Student object with a BacklogStudent (and vice-versa).
      */
     public boolean updateMarks(int rollNo, int[] newMarks) {
-        Student student = findByRollNo(rollNo);
-        if (student == null) {
-            System.out.println("❌ Student with roll number " + rollNo + " not found.");
+        Student old = findByRollNo(rollNo);
+        if (old == null) {
+            System.out.println("❌ Roll number " + rollNo + " not found.");
             return false;
         }
-        student.setMarks(newMarks);
-        save();
-        System.out.println("✅ Marks updated for student: " + student.getName());
+
+        boolean needsBacklog = BacklogStudent.hasBacklogs(newMarks);
+        boolean isBacklog = old instanceof BacklogStudent;
+
+        if (needsBacklog == isBacklog) {
+            // Same type — just update marks
+            old.setMarks(newMarks);
+        } else {
+            // Type changed — replace object
+            students.remove(old);
+            Student replacement;
+            if (needsBacklog) {
+                replacement = new BacklogStudent(old.getUsername(), old.getPassword(),
+                        old.getRollNo(), old.getName(), old.getSubjectNames(), newMarks);
+            } else {
+                replacement = new Student(old.getUsername(), old.getPassword(),
+                        old.getRollNo(), old.getName(), old.getSubjectNames(), newMarks);
+            }
+            students.add(replacement);
+        }
+
+        saveStudents();
+        System.out.println("✅ Marks updated for " + old.getName());
         return true;
     }
 
-    /**
-     * Deletes a student by roll number.
-     */
     public boolean deleteStudent(int rollNo) {
         Student student = findByRollNo(rollNo);
         if (student == null) {
-            System.out.println("❌ Student with roll number " + rollNo + " not found.");
+            System.out.println("❌ Roll number " + rollNo + " not found.");
             return false;
         }
         students.remove(student);
-        save();
+        saveStudents();
         System.out.println("✅ Student '" + student.getName() + "' deleted.");
         return true;
     }
 
-    // ── Search & View ──────────────────────────────────
+    // ── Search ─────────────────────────────────────────
 
-    /**
-     * Finds a student by roll number.
-     */
     public Student findByRollNo(int rollNo) {
         for (Student s : students) {
             if (s.getRollNo() == rollNo) return s;
@@ -77,9 +108,6 @@ public class ResultManager {
         return null;
     }
 
-    /**
-     * Finds a student by their login credentials.
-     */
     public Student findByCredentials(String username, String password) {
         for (Student s : students) {
             if (s.login(username, password)) return s;
@@ -87,54 +115,70 @@ public class ResultManager {
         return null;
     }
 
-    /**
-     * Displays all student records in a tabular format.
-     */
-    public void viewAllStudents() {
-        if (students.isEmpty()) {
-            System.out.println("ℹ  No student records found.");
-            return;
-        }
+    // ── Backlog filter ─────────────────────────────────
 
-        System.out.println();
-        System.out.println("╔════════════════════════════════════════════════════════════════════════════╗");
-        System.out.println("║                          ALL STUDENT RECORDS                              ║");
-        System.out.println("╠════════════════════════════════════════════════════════════════════════════╣");
-        System.out.printf("║ %-6s %-15s %4s %4s %4s   %6s   %-5s  %-8s ║%n",
-                "Roll", "Name", "S1", "S2", "S3", "Pct", "Grade", "Type");
-        System.out.println("╠════════════════════════════════════════════════════════════════════════════╣");
+    public ArrayList<BacklogStudent> getBacklogStudents() {
+        ArrayList<BacklogStudent> list = new ArrayList<>();
         for (Student s : students) {
-            System.out.printf("║ %s ║%n", s.toString());
+            if (s instanceof BacklogStudent) {
+                list.add((BacklogStudent) s);
+            }
         }
-        System.out.println("╚════════════════════════════════════════════════════════════════════════════╝");
-        System.out.println("Total records: " + students.size());
+        return list;
     }
 
-    // ── Sorting ────────────────────────────────────────
+    // ── Sort ───────────────────────────────────────────
 
-    /**
-     * Sorts students by percentage in descending order.
-     */
     public void sortByPercentageDesc() {
         students.sort(Comparator.comparingDouble(Student::getPercentage).reversed());
-        System.out.println("✅ Students sorted by percentage (highest first).");
     }
 
-    /**
-     * Sorts students by roll number in ascending order.
-     */
     public void sortByRollNo() {
         students.sort(Comparator.comparingInt(Student::getRollNo));
-        System.out.println("✅ Students sorted by roll number.");
     }
 
-    // ── Persistence ────────────────────────────────────
+    // ── Accessors ──────────────────────────────────────
 
-    private void save() {
-        FileHandler.saveToFile(students);
+    public ArrayList<Student> getStudents() { return students; }
+
+    private void saveStudents() { FileHandler.saveStudents(students); }
+
+    // ═══════════════════════════════════════════════════
+    //  PROFESSOR CRUD
+    // ═══════════════════════════════════════════════════
+
+    public boolean addProfessor(Professor professor) {
+        for (Professor p : professors) {
+            if (p.getUsername().equals(professor.getUsername())) {
+                System.out.println("❌ Professor username '" + professor.getUsername() + "' already exists.");
+                return false;
+            }
+        }
+        professors.add(professor);
+        saveProfessors();
+        System.out.println("✅ Professor '" + professor.getUsername() + "' added.");
+        return true;
     }
 
-    public ArrayList<Student> getStudents() {
-        return students;
+    public boolean deleteProfessor(String username) {
+        Professor target = null;
+        for (Professor p : professors) {
+            if (p.getUsername().equals(username)) { target = p; break; }
+        }
+        if (target == null) return false;
+        professors.remove(target);
+        saveProfessors();
+        return true;
     }
+
+    public Professor findProfessor(String username, String password) {
+        for (Professor p : professors) {
+            if (p.login(username, password)) return p;
+        }
+        return null;
+    }
+
+    public ArrayList<Professor> getProfessors() { return professors; }
+
+    private void saveProfessors() { FileHandler.saveProfessors(professors); }
 }

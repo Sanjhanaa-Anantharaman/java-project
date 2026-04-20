@@ -2,20 +2,23 @@ package model;
 
 /**
  * Represents a regular student with marks and result computation.
- * Demonstrates Inheritance (extends User) and Encapsulation.
+ * Subjects now have names (chosen when adding the student).
  */
 public class Student extends User {
 
     private int rollNo;
     private String name;
-    private int[] marks;          // marks for 3 subjects
+    private String[] subjectNames;  // e.g. {"Maths", "Physics", "Chemistry"}
+    private int[] marks;
     private double percentage;
     private String grade;
 
-    public Student(String username, String password, int rollNo, String name, int[] marks) {
+    public Student(String username, String password, int rollNo, String name,
+                   String[] subjectNames, int[] marks) {
         super(username, password);
         this.rollNo = rollNo;
         this.name = name;
+        this.subjectNames = subjectNames;
         this.marks = marks;
         this.percentage = calculatePercentage();
         this.grade = assignGrade();
@@ -23,55 +26,34 @@ public class Student extends User {
 
     // ── Getters & Setters ──────────────────────────────
 
-    public int getRollNo() {
-        return rollNo;
-    }
+    public int getRollNo() { return rollNo; }
+    public void setRollNo(int rollNo) { this.rollNo = rollNo; }
 
-    public void setRollNo(int rollNo) {
-        this.rollNo = rollNo;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
+    public String[] getSubjectNames() { return subjectNames; }
+    public void setSubjectNames(String[] subjectNames) { this.subjectNames = subjectNames; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public int[] getMarks() {
-        return marks;
-    }
-
+    public int[] getMarks() { return marks; }
     public void setMarks(int[] marks) {
         this.marks = marks;
         this.percentage = calculatePercentage();
         this.grade = assignGrade();
     }
 
-    public double getPercentage() {
-        return percentage;
-    }
-
-    public String getGrade() {
-        return grade;
-    }
+    public double getPercentage() { return percentage; }
+    public String getGrade() { return grade; }
 
     // ── Result Calculation ─────────────────────────────
 
     public double calculatePercentage() {
         if (marks == null || marks.length == 0) return 0;
         int total = 0;
-        for (int m : marks) {
-            total += m;
-        }
+        for (int m : marks) total += m;
         return Math.round((total * 100.0) / (marks.length * 100));
     }
 
-    /**
-     * Assigns grade based on percentage.
-     * This method is overridden in BacklogStudent (Polymorphism).
-     */
     public String assignGrade() {
         double pct = calculatePercentage();
         if (pct >= 90) return "A+";
@@ -83,12 +65,7 @@ public class Student extends User {
         return "F";
     }
 
-    /**
-     * Returns the student type string used in CSV serialization.
-     */
-    public String getType() {
-        return "Normal";
-    }
+    public String getType() { return "Normal"; }
 
     // ── Display ────────────────────────────────────────
 
@@ -99,24 +76,27 @@ public class Student extends User {
         System.out.printf("║  Roll No    : %-22d ║%n", rollNo);
         System.out.printf("║  Name       : %-22s ║%n", name);
         for (int i = 0; i < marks.length; i++) {
-            System.out.printf("║  Subject %d  : %-22d ║%n", i + 1, marks[i]);
+            System.out.printf("║  %-10s : %-22d ║%n", subjectNames[i], marks[i]);
         }
         System.out.printf("║  Percentage : %-22.1f ║%n", percentage);
         System.out.printf("║  Grade      : %-22s ║%n", grade);
-        System.out.printf("║  Type       : %-22s ║%n", getType());
         System.out.println("╚══════════════════════════════════════╝");
     }
 
     /**
-     * Converts this student to a CSV line for file storage.
+     * CSV: rollNo,name,sub1;sub2;sub3,m1;m2;m3,percentage,grade,type,username,password
      */
     public String toCSV() {
         StringBuilder sb = new StringBuilder();
         sb.append(rollNo).append(",");
         sb.append(name).append(",");
-        for (int m : marks) {
-            sb.append(m).append(",");
+        sb.append(String.join(";", subjectNames)).append(",");
+        StringBuilder ms = new StringBuilder();
+        for (int i = 0; i < marks.length; i++) {
+            if (i > 0) ms.append(";");
+            ms.append(marks[i]);
         }
+        sb.append(ms).append(",");
         sb.append(String.format("%.1f", percentage)).append(",");
         sb.append(grade).append(",");
         sb.append(getType()).append(",");
@@ -127,7 +107,10 @@ public class Student extends User {
 
     @Override
     public String toString() {
-        return String.format("%-6d %-15s %4d %4d %4d   %5.1f%%   %-5s  %s",
-                rollNo, name, marks[0], marks[1], marks[2], percentage, grade, getType());
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%-6d %-15s", rollNo, name));
+        for (int m : marks) sb.append(String.format(" %4d", m));
+        sb.append(String.format("   %5.1f%%   %-7s  %s", percentage, grade, getType()));
+        return sb.toString();
     }
 }

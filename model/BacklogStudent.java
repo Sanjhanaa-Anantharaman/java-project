@@ -4,22 +4,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a student with backlogs (failed subjects).
+ * Represents a student with backlogs (failed subjects — marks below 30).
  * Demonstrates Multilevel Inheritance and Polymorphism (overrides assignGrade).
- * IS-A relationship: BacklogStudent IS-A Student IS-A User.
  */
 public class BacklogStudent extends Student {
+
+    public static final int PASS_MARK = 30;
 
     private int backlogCount;
     private List<String> backlogSubjects;
 
-    public BacklogStudent(String username, String password, int rollNo, String name, int[] marks) {
-        super(username, password, rollNo, name, marks);
+    public BacklogStudent(String username, String password, int rollNo, String name,
+                          String[] subjectNames, int[] marks) {
+        super(username, password, rollNo, name, subjectNames, marks);
         this.backlogSubjects = new ArrayList<>();
         detectBacklogs();
     }
 
-    // ── Getters & Setters ──────────────────────────────
+    // ── Getters ────────────────────────────────────────
 
     public int getBacklogCount() {
         return backlogCount;
@@ -31,15 +33,13 @@ public class BacklogStudent extends Student {
 
     // ── Backlog Detection ──────────────────────────────
 
-    /**
-     * A subject is considered a backlog if marks are below 40 (pass mark).
-     */
     private void detectBacklogs() {
         backlogSubjects.clear();
         int[] marks = getMarks();
+        String[] names = getSubjectNames();
         for (int i = 0; i < marks.length; i++) {
-            if (marks[i] < 40) {
-                backlogSubjects.add("Subject " + (i + 1));
+            if (marks[i] < PASS_MARK) {
+                backlogSubjects.add(names[i]);
             }
         }
         backlogCount = backlogSubjects.size();
@@ -51,19 +51,13 @@ public class BacklogStudent extends Student {
         detectBacklogs();
     }
 
-    // ── Polymorphism: grade override ───────────────────
+    // ── Polymorphism ───────────────────────────────────
 
-    /**
-     * Overrides the parent assignGrade().
-     * If the student has any backlog, the grade is "Backlog" regardless of percentage.
-     */
     @Override
     public String assignGrade() {
         int[] marks = getMarks();
         for (int m : marks) {
-            if (m < 40) {
-                return "Backlog";
-            }
+            if (m < PASS_MARK) return "Backlog";
         }
         return super.assignGrade();
     }
@@ -73,8 +67,6 @@ public class BacklogStudent extends Student {
         return "Backlog";
     }
 
-    // ── Display ────────────────────────────────────────
-
     @Override
     public void viewResult() {
         super.viewResult();
@@ -82,5 +74,15 @@ public class BacklogStudent extends Student {
             System.out.println("  ⚠  Backlog Subjects: " + String.join(", ", backlogSubjects));
             System.out.println("  ⚠  Backlog Count   : " + backlogCount);
         }
+    }
+
+    /**
+     * Checks if any mark is below the pass threshold.
+     */
+    public static boolean hasBacklogs(int[] marks) {
+        for (int m : marks) {
+            if (m < PASS_MARK) return true;
+        }
+        return false;
     }
 }
